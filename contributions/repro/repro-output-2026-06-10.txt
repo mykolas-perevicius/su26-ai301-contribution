@@ -1,0 +1,26 @@
+# Reproduction evidence for pytorch/ao#729 — captured 2026-06-10
+# Env: macOS arm64 (Darwin 25.5), Python 3.14.4, torch 2.12.0 CPU, torchao 0.18.0+git5165bfb03 (editable, USE_CPP=0)
+
+## Run 1
+baseline  | expert weight: Parameter torch.float32 | state_dict: 8.40 MB
+int8 wo   | expert weight: Int8Tensor (qdata dtype: torch.int8) | router untouched: Parameter torch.float32 | state_dict: 2.15 MB (3.90x smaller)
+int8 wo   | forward pass OK, output shape (4, 64, 256), SQNR vs fp32 baseline: 45.1 dB
+  [PASS] expert weight is quantized subclass
+  [PASS] expert qdata is int8
+  [PASS] router weight not quantized
+  [PASS] state_dict >= 3x smaller
+  [PASS] SQNR > 30 dB
+int4 wo   | NOT CPU-runnable as expected: ImportError: Requires mslk >= 1.0.0
+RESULT: quantize_() weight-only works on an MoE model — issue #729 example is feasible.
+
+## Run 2 (consistency check)
+baseline  | expert weight: Parameter torch.float32 | state_dict: 8.40 MB
+int8 wo   | expert weight: Int8Tensor (qdata dtype: torch.int8) | router untouched: Parameter torch.float32 | state_dict: 2.15 MB (3.90x smaller)
+int8 wo   | forward pass OK, output shape (4, 64, 256), SQNR vs fp32 baseline: 45.1 dB
+  [PASS] expert weight is quantized subclass
+  [PASS] expert qdata is int8
+  [PASS] router weight not quantized
+  [PASS] state_dict >= 3x smaller
+  [PASS] SQNR > 30 dB
+int4 wo   | NOT CPU-runnable as expected: ImportError: Requires mslk >= 1.0.0
+RESULT: quantize_() weight-only works on an MoE model — issue #729 example is feasible.
