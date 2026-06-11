@@ -148,3 +148,9 @@ python scripts/check_copyright_header.py examples/quantize_moe.py              #
 2. **`examples/README.md` entry deferred** to PR review (precedent didn't add one; maintainer location answer still pending).
 
 **STOP point:** Phase III complete — working example + passing test pushed. PR not opened (Phase IV). User actions: commit/push log repo, check-in form ("Phase III Complete"), Slack scrum/celebration posts.
+
+### 2026-06-11 — Phase IV on hold: CUDA validation handoff
+
+Decision: hold the PR until the example is validated on a CUDA machine — the `--dtype int4 --device cuda` path is documented but has never executed (this Mac is CPU/MPS-only), and a CUDA box unskips the 32 GPU-only tests in `test_quant_api.py`. Full step-by-step handoff (clone → run → capture → commit results back to this repo): [`gpu-validation-runbook.md`](./gpu-validation-runbook.md).
+
+Also noted but deliberately **not** bundled into this contribution: the 2 pre-existing `test_quant_api.py` failures on Apple silicon are MPS-specific upstream gaps (missing `torch.mps.reset_peak_memory_stats`; `Float8_e4m3fn` unsupported on MPS) that torchao's CI never sees (no MPS runners). Fixing them = MPS-aware skip guards / accelerator-agnostic memory APIs — a tidy **candidate Contribution 2**; check for an existing upstream issue before filing.

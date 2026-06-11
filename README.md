@@ -169,6 +169,7 @@ Using UMPIRE framework (adapted):
 - `--dtype int4` on CPU: prints the documented hardware warning and exits non-zero (`mslk` + CUDA required) — the guard behaves as designed.
 - Full `test/quantization/test_quant_api.py` on CPU: 12 passed (including the new test), 32 skipped (GPU-only), 2 failed — both failures reproduce on a clean checkout without my changes (verified via `git stash`; they're Apple-silicon/MPS backend gaps: missing `torch.mps.reset_peak_memory_stats`, and `Float8_e4m3fn` unsupported on MPS), so they're unrelated to this change.
 - Lint: `ruff check` + `ruff format` (project-pinned v0.11.6) clean on both changed files; `scripts/check_copyright_header.py` passes on the new example.
+- **CUDA validation: pending (blocks Phase IV).** The int8/int4 `--device cuda` paths and the GPU-only tests will be exercised on a CUDA PC before the PR opens — runbook: [`contributions/gpu-validation-runbook.md`](./contributions/gpu-validation-runbook.md); results land here when done.
 
 ---
 
