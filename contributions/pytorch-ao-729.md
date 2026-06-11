@@ -108,3 +108,43 @@ Friction log: (1) Python 3.14 wheel availability was the main risk — resolved 
 5. Python 3.14 `SyntaxWarning` on import — harmless noise users may report; possible separate micro-PR.
 
 **STOP point:** Phase II technical work complete (env + repro + plan documented in README). Remaining user actions: commit/push this log repo, submit check-in form ("Phase II Complete"), optional Slack announcement. No example code written, no PR opened — that is Phase III.
+
+### 2026-06-11 — Phase III: build (example + test)
+
+#### Pre-work
+
+- Issue state: my scope-confirmation comment posted 2026-06-11 (3 comments total); no maintainer reply yet → proceeded with the primary plan (toy model, top-level `examples/quantize_moe.py`, int8 default); PR can adjust if answers arrive.
+- `git fetch upstream && git rebase upstream/main` → branch moved `5165bfb03` → `abea9e0c4` (1 new upstream commit), clean rebase.
+
+#### Build
+
+- `examples/quantize_moe.py` — same validated design as the Phase II repro, productionized: BSD-3 header, docstring with run instructions + int4 hardware note + fused-3D-experts pointer (`FqnToConfig` + `PerRow(1)`, per `quantize_llama_4.py`); argparse `--dtype int8|int4`, `--device`; experts-only `filter_fn`; uses the project's own `compute_error` helper for SQNR instead of hand-rolling; four assertions make it self-verifying (exit 1 on failure).
+- `test/quantization/test_quant_api.py` — `ToyMoEModel` (module-level, mirroring `ToyLinearModel`: `example_inputs()` method, fully-qualified `torch.nn`, `nn.Sequential` experts to avoid an `F` import) + `TestQuantFlow.test_int8_weight_only_moe_experts_only` (asserts `Int8Tensor` experts, unquantized router, SQNR > 25 dB — thresholds modeled on the file's existing `sqnr >= 16.5` pattern).
+
+#### Verification
+
+```sh
+python examples/quantize_moe.py                  # run 1: 3.90x smaller, SQNR 45.1 dB, all asserts pass
+python examples/quantize_moe.py                  # run 2: identical (seeded)
+python examples/quantize_moe.py --dtype int4     # warns, exits 1 on CPU (mslk/CUDA guard) — as documented
+pytest test/quantization/test_quant_api.py -k moe    # 1 passed (1.03s)
+pytest test/quantization/test_quant_api.py           # 12 passed, 32 skipped (GPU), 2 failed
+git stash && pytest -k "streaming or e2e_numerics_config0" && git stash pop
+# → same 2 failures on clean tree: pre-existing MPS gaps (no torch.mps.reset_peak_memory_stats;
+#   Float8_e4m3fn unsupported on MPS backend) — unrelated to this change
+ruff check examples/quantize_moe.py test/quantization/test_quant_api.py --fix   # All checks passed!
+ruff format <both>                               # 2 files left unchanged
+python scripts/check_copyright_header.py examples/quantize_moe.py              # exit 0
+```
+
+#### Commits (pushed to fork)
+
+- [`40f18c99d`](https://github.com/mykolas-perevicius/ao/commit/40f18c99d) — Add weight-only quantization MoE example
+- [`2b96e6f35`](https://github.com/mykolas-perevicius/ao/commit/2b96e6f35) — Add test for int8 weight-only quantization of MoE experts
+
+#### Deviations from the Phase II plan
+
+1. **Added a unit test** (plan listed the example only, matching precedent #3408): since CI never runs examples, the test upgrades MoE support from demonstrated to regression-checked. Flag in PR description as droppable if maintainers prefer single-file.
+2. **`examples/README.md` entry deferred** to PR review (precedent didn't add one; maintainer location answer still pending).
+
+**STOP point:** Phase III complete — working example + passing test pushed. PR not opened (Phase IV). User actions: commit/push log repo, check-in form ("Phase III Complete"), Slack scrum/celebration posts.

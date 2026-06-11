@@ -4,7 +4,7 @@
 **Student:** Mykolas Perevicius — GitHub [@mykolas-perevicius](https://github.com/mykolas-perevicius) — AI301 Section 1A  
 **Issue:** <https://github.com/pytorch/ao/issues/729>  
 **Fork:** <https://github.com/mykolas-perevicius/ao>  
-**Status:** Phase II Complete
+**Status:** Phase III Complete
 
 > **Working log:** the first-look investigation, dated baseline evidence, and command transcripts live in [`contributions/pytorch-ao-729.md`](./contributions/pytorch-ao-729.md). This README keeps the report essentials.
 
@@ -145,7 +145,7 @@ Using UMPIRE framework (adapted):
 5. Optionally add an entry to `examples/README.md` — precedent PR [#3408](https://github.com/pytorch/ao/pull/3408) (which added `quantize_llama_4.py`) did not, so confirm with the maintainer.
 6. Comment on issue #729 with the Phase II findings and the open questions (toy vs HF model; `examples/` vs `examples/inference/`).
 
-**Implement:** branch [`fix-issue-729-moe-quant-example`](https://github.com/mykolas-perevicius/ao/tree/fix-issue-729-moe-quant-example) — commits land here in Phase III.
+**Implement:** branch [`fix-issue-729-moe-quant-example`](https://github.com/mykolas-perevicius/ao/tree/fix-issue-729-moe-quant-example) — Phase III commits: [`40f18c99d`](https://github.com/mykolas-perevicius/ao/commit/40f18c99d) (example), [`2b96e6f35`](https://github.com/mykolas-perevicius/ao/commit/2b96e6f35) (test).
 
 **Review:** self-review against `CONTRIBUTING.md` (fork + branch from `main` — done); run `scripts/run_ruff_fix.sh` / pre-commit (CI lints via `ruff_linter.yml`); match the repo's commit style (short imperative subjects; PRs are squash-merged with the PR number appended).
 
@@ -155,31 +155,51 @@ Using UMPIRE framework (adapted):
 
 ## Testing Strategy
 
-> *Phase III — coming soon.*
-
 ### Unit Tests
 
-- [ ] *Phase III.*
+- [x] `TestQuantFlow.test_int8_weight_only_moe_experts_only` — added to `test/quantization/test_quant_api.py`, following that file's existing conventions (module-level toy model like `ToyLinearModel`, `compute_error` for SQNR, `Int8Tensor` isinstance asserts). It quantizes a new `ToyMoEModel`'s expert linears via `filter_fn`, then asserts every expert weight becomes `Int8Tensor`, the router weight stays unquantized, and SQNR vs float32 exceeds 25 dB. Passes in ~1 s on CPU.
 
 ### Integration Tests
 
-- [ ] *Phase III.*
+- [x] Not applicable by project design: torchao's CI does not execute `examples/` scripts (lint only, via `ruff_linter.yml`). The example is therefore **self-verifying** — it asserts expert weights are quantized, the router is not, the model shrank ≥1.5x, and SQNR > 25 dB, exiting non-zero on any failure.
 
 ### Manual Testing
 
-> *Phase III — run the example on CPU (int8 weight-only) and capture output.*
+- `python examples/quantize_moe.py` on CPU, twice: identical output both runs — experts → `Int8Tensor`, router stays `torch.float32`, serialized 8.40 → 2.15 MB (3.90x), SQNR 45.1 dB, all assertions pass.
+- `--dtype int4` on CPU: prints the documented hardware warning and exits non-zero (`mslk` + CUDA required) — the guard behaves as designed.
+- Full `test/quantization/test_quant_api.py` on CPU: 12 passed (including the new test), 32 skipped (GPU-only), 2 failed — both failures reproduce on a clean checkout without my changes (verified via `git stash`; they're Apple-silicon/MPS backend gaps: missing `torch.mps.reset_peak_memory_stats`, and `Float8_e4m3fn` unsupported on MPS), so they're unrelated to this change.
+- Lint: `ruff check` + `ruff format` (project-pinned v0.11.6) clean on both changed files; `scripts/check_copyright_header.py` passes on the new example.
 
 ---
 
 ## Implementation Notes
 
-> *Phase III.* Dated progress entries go in the [working log](./contributions/pytorch-ao-729.md); key milestones will be summarized here.
+> Dated raw transcripts live in the [working log](./contributions/pytorch-ao-729.md); milestones are summarized here.
+
+### Week 1 Progress (2026-06-10 → 2026-06-11)
+
+**What I built:**
+
+- `examples/quantize_moe.py` (new, 166 lines): self-contained token-choice top-2 MoE block (softmax router + `nn.Linear` experts), quantized experts-only via `quantize_(…, filter_fn=is_expert_linear)`; prints weight types, serialized sizes, and SQNR; asserts all checks (exits non-zero on failure); `--dtype int8|int4` and `--device` flags with the int4 hardware guard; docstring points fused-3D-expert users at `FqnToConfig` + `PerRow(1)`.
+- `test/quantization/test_quant_api.py` (+65 lines): `ToyMoEModel` helper mirroring `ToyLinearModel` conventions, plus `test_int8_weight_only_moe_experts_only`.
+- Rebased the branch onto upstream `main` (`abea9e0c4`) before starting, per the daily rhythm.
+
+**Challenges faced:**
+
+- The full test file showed 2 failures after my change. Rather than assume they were mine, I `git stash`-ed the change and re-ran: both failures reproduce on the clean tree (MPS backend gaps on Apple silicon), so they're pre-existing. Restored the change and documented them in Testing Strategy.
+- Writing the test idiomatically: instead of inventing scaffolding, I modeled it on the file's existing patterns — module-level toy model, `compute_error` SQNR floor, `Int8Tensor` isinstance asserts — so it reads like the surrounding tests.
+
+**Commits this week:** [`40f18c99d`](https://github.com/mykolas-perevicius/ao/commit/40f18c99d) (example), [`2b96e6f35`](https://github.com/mykolas-perevicius/ao/commit/2b96e6f35) (test).
 
 ### Code Changes
 
-- **Files modified:** *Phase III.*
-- **Key commits:** *Phase III.*
-- **Approach decisions:** *Phase III.*
+- **Files modified:** `examples/quantize_moe.py` (new); `test/quantization/test_quant_api.py` (`ToyMoEModel` + one test).
+- **Key commits:** [`40f18c99d`](https://github.com/mykolas-perevicius/ao/commit/40f18c99d) — Add weight-only quantization MoE example; [`2b96e6f35`](https://github.com/mykolas-perevicius/ao/commit/2b96e6f35) — Add test for int8 weight-only quantization of MoE experts.
+- **Approach decisions:**
+  - **int8 default, int4 behind a flag** — int8 weight-only runs anywhere (CPU-portable, CI-friendly); the default int4 path needs CUDA + `mslk`, so it's opt-in with an explicit warning.
+  - **Router deliberately left unquantized** — quantizing the router changes token-to-expert assignments (a behavior change, not just numerics); the experts-only `filter_fn` mirrors `quantize_llama_4.py`'s experts-only design.
+  - **Added a unit test beyond the single-file precedent (#3408)** — CI never executes examples, so without a test, MoE support stays demonstrated-but-unguarded. The test makes it regression-checked; it's an easy drop in review if maintainers prefer the single-file shape.
+  - **Deferred the `examples/README.md` entry** — precedent PR #3408 didn't add one; the open question to maintainers (location, `examples/` vs `examples/inference/`) is still pending, so this stays a PR-review decision.
 
 ---
 
