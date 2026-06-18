@@ -4,7 +4,7 @@
 **Student:** Mykolas Perevicius — GitHub [@mykolas-perevicius](https://github.com/mykolas-perevicius) — AI301 Section 1A  
 **Issue:** <https://github.com/pytorch/ao/issues/729>  
 **Fork:** <https://github.com/mykolas-perevicius/ao>  
-**Status:** Phase IV — CUDA validation complete (2026-06-17); PR draft prepared, awaiting review before opening
+**Status:** Phase IV — PR [#4507](https://github.com/pytorch/ao/pull/4507) submitted to pytorch/ao (2026-06-17), awaiting review
 
 > **Working log:** the first-look investigation, dated baseline evidence, and command transcripts live in [`contributions/pytorch-ao-729.md`](./contributions/pytorch-ao-729.md). This README keeps the report essentials.
 
@@ -220,14 +220,17 @@ Mapping the work to behaving like a contributing engineer (Phase III +3 bonus cr
 
 ## Pull Request
 
-**PR Link:** *Phase IV.*
+**PR Link:** <https://github.com/pytorch/ao/pull/4507> — *Add weight-only quantization MoE example* (base `pytorch/ao:main` ← head `mykolas-perevicius:fix-issue-729-moe-quant-example`).
 
-**PR Description:** *Phase IV.*
+**PR commits (post-rebase):** [`cb65991c3`](https://github.com/pytorch/ao/pull/4507/commits/cb65991c3) (example) · [`ba6c62b09`](https://github.com/pytorch/ao/pull/4507/commits/ba6c62b09) (test). The branch was rebased onto the latest upstream `main` at submission, so these supersede the Phase III SHAs `40f18c99d`/`2b96e6f35` (identical content, new hashes). Diff: 2 files, +231/−0; `Closes #729`.
+
+**PR Description:** Adds a runnable example (`examples/quantize_moe.py`) that applies int8 weight-only quantization to a small MoE block's expert linears via `quantize_(…, filter_fn=…)` — router kept in high precision — and self-verifies the ~3.9x size reduction and 45.1 dB SQNR, plus a unit test (`test_int8_weight_only_moe_experts_only`). Purely additive, no core changes. Full description (why → what → test plan → acceptance criteria → open questions) is mirrored in [`contributions/pr-draft.md`](./contributions/pr-draft.md) and posted on the PR.
 
 **Maintainer Feedback:**
-- *Phase IV.*
+- **2026-06-17** — Opened PR #4507 against `pytorch/ao:main` (ready for review, not draft). Posted a review-request [comment](https://github.com/pytorch/ao/pull/4507#issuecomment-4736932731) @mentioning **@jcaip** (cc'd on #729, reviewed the analogous `quantize_llama_4.py` PR #3408) and **@msaroufim** (issue author). Raised 4 open questions on the PR: example location (`examples/` vs `examples/inference/`), keep/drop the unit test, an `examples/README.md` entry, and the supported public path for int4 given `mslk` is `is_fbcode`-gated. Awaiting first review.
+- *Meta CLA:* required for merge (one-time, <https://code.facebook.com/cla>) — will be prompted by the CLA bot on the PR.
 
-**Status:** Not yet opened.
+**Status:** Awaiting review (PR open since 2026-06-17).
 
 ---
 
@@ -235,15 +238,25 @@ Mapping the work to behaving like a contributing engineer (Phase III +3 bonus cr
 
 ### Technical Skills Gained
 
-*Phase IV.*
+- **torchao's `quantize_()` config-object workflow.** I now understand the model in practice: `quantize_()` walks the module tree and, for modules matching `filter_fn`, swaps the `nn.Linear` weight `Parameter` for a quantized tensor subclass (`Int8Tensor`) — architecture-agnostic, which is exactly why it "just works" on an MoE block. Using `filter_fn` to target only the expert linears (and deliberately *not* the router) was the key design lever.
+- **Reading quantization quality, not just running it.** Used the project's own `compute_error` to report SQNR (45.1 dB) rather than eyeballing outputs, and learned where the thresholds live in the existing tests (`sqnr >= 16.5`) so my assertions matched house style.
+- **Writing tests that look native to the repo.** Modeling `ToyMoEModel` on the file's `ToyLinearModel` (module-level, `example_inputs()`, `nn.Sequential` experts to avoid an extra import) taught me more about the codebase's conventions than any doc.
+- **GPU/CUDA bring-up and reading a test suite's hardware gates.** Setting up torch+CUDA on WSL2, then learning to distinguish *hardware-gated skips* (`Need SM 8.9+`, `Checkpoints are produced in SM90+` — float8 on an SM 8.6 card) from *real failures*. The same file is "12 passed / 2 failed" on a Mac and "18 passed / 0 failed" on CUDA — same code, different backend.
+- **Dependency archaeology.** Tracing `ImportError: Requires mslk >= 1.0.0` from `quant_api.py` → `int4_tensor.py:23` → `from mslk.quantize.shuffle import …` → `torchao/utils.py:1226`'s `is_fbcode()` gate, and recognizing that the public PyPI `mslk` (0.0.0, 894 bytes) is a placeholder, not the real kernel library.
 
 ### Challenges Overcome
 
-*Phase IV.*
+- **Not assuming a failure is mine.** When the full test file showed 2 failures, the instinct is to suspect your own change. Instead I `git stash`-ed and re-ran on a clean tree — the failures reproduced, so they were pre-existing MPS backend gaps. The CUDA run later closed the loop: those failures don't exist on Linux/CUDA at all. Lesson: isolate the variable before drawing a conclusion.
+- **Turning a dead end into a contribution.** The int4 `--device cuda` path — the whole point of the GPU validation — couldn't be run end-to-end, because `mslk >= 1.0.0` isn't installable from public PyPI. Rather than silently skip it, I traced *why*, corrected our own GPU runbook (the `pip install mslk` step was a dead end), and converted it into a concrete, well-scoped question for the maintainer. A blocker became signal.
+- **Environment friction without a full reinstall.** Python-version/wheel risk and the C++ extension build were handled with `pip index versions` checks up front and `USE_CPP=0` — small habits that avoided losing a day to a build.
 
 ### What I'd Do Differently Next Time
 
-*Phase IV.*
+- **Front-load the maintainer questions.** I built against the primary plan (toy model, top-level `examples/quantize_moe.py`, int8 default) while the location/model-shape questions were still open. That was a reasonable bet, but asking earlier — before writing code — would de-risk rework if the maintainer prefers `examples/inference/` or a real checkpoint.
+- **Probe the hard dependency sooner.** I discovered int4's `mslk` requirement is unsatisfiable on public infra only at GPU-validation time. Probing `Int4WeightOnlyConfig()`'s real import chain in Phase II would have surfaced it a week earlier and shaped the docstring from the start.
+- **Tighter commit cadence on the fork branch.** Both code commits landed the same day. Splitting the example and the test across days (each is independently meaningful) would have made the build history easier to follow.
+
+**Teachable insight:** on a mature project, the highest-leverage move for a first-timer isn't writing more code — it's *reusing the project's own vocabulary* (its test helpers, its error metric, its example conventions) and *reporting what you find honestly*, including the parts that don't work. The `mslk` dead end is more useful to a maintainer than a green check would have been, because it documents a real gap in the public int4 story.
 
 ---
 

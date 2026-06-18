@@ -1,12 +1,13 @@
-# Phase IV PR draft — pytorch/ao #729
+# Phase IV PR — pytorch/ao #729
 
-> **Not yet opened.** This is a copy-ready draft for the upstream pull request. When approved,
-> open it from the fork branch against `pytorch/ao:main` and paste the body below.
+> **Submitted 2026-06-17 as [pytorch/ao#4507](https://github.com/pytorch/ao/pull/4507)** (ready for review).
+> This file is the source for the PR body below.
 
+- **PR:** <https://github.com/pytorch/ao/pull/4507>
 - **Base:** `pytorch/ao:main`
 - **Head:** `mykolas-perevicius:fix-issue-729-moe-quant-example`
 - **Closes:** #729
-- **Commits:** [`40f18c99d`](https://github.com/mykolas-perevicius/ao/commit/40f18c99d) (example) · [`2b96e6f35`](https://github.com/mykolas-perevicius/ao/commit/2b96e6f35) (test)
+- **Commits (post-rebase):** [`cb65991c3`](https://github.com/pytorch/ao/pull/4507/commits/cb65991c3) (example) · [`ba6c62b09`](https://github.com/pytorch/ao/pull/4507/commits/ba6c62b09) (test)
 
 ---
 

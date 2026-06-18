@@ -188,3 +188,29 @@ The int4 `--device cuda` path — the one path GPU validation was meant to prove
 - → Two follow-ups: (1) **correct the runbook** — drop/replace the `pip install mslk` line, since it cannot satisfy the int4 path on public infra; (2) **open question for the maintainer** — what is the supported public path to the int4 default kernels (build FBGEMM-GenAI? a different config? CPU-buildable variant)? The example already gates int4 behind `--dtype` with a hardware/dependency warning, so the showcase (int8) is unaffected.
 
 **STOP point:** CUDA validation complete and folded into the README (Manual Testing) + this log. PR description drafted (Phase IV). Per instruction, **no outward-facing action taken** — PR not opened, no upstream comment, log repo not pushed — pending review of the draft.
+
+### 2026-06-17 — Phase IV: PR submitted
+
+#### Pre-submission gate (all clean)
+
+- `git diff upstream/main...HEAD --stat` → exactly 2 files, `examples/quantize_moe.py` (+166) and `test/quantization/test_quant_api.py` (+65), +231/−0. No stray/debug/formatting changes.
+- `git merge-tree` dry-run vs `upstream/main` → 0 conflict markers.
+- `ruff check` + `ruff format --check` on both files → clean (ruff 0.11.6, the version `CONTRIBUTING.md` pins).
+- Smoke-tested on the rebased base (CUDA): int8 example 3.90x / SQNR 45.1 dB, `-k moe` 1 passed.
+- `CONTRIBUTING.md` checklist met except the one-time **Meta CLA** (prompted by the CLA bot on the PR; <https://code.facebook.com/cla>). No PR template in the repo (only `ISSUE_TEMPLATE/`), so used the program template structure.
+
+#### Submission
+
+- **Rebased** `fix-issue-729-moe-quant-example` onto latest upstream `main` and force-pushed (`--force-with-lease`). New SHAs: `40f18c99d → cb65991c3` (example), `2b96e6f35 → ba6c62b09` (test) — identical content, re-parented onto current `main`.
+- **Opened PR [#4507](https://github.com/pytorch/ao/pull/4507)** (`pytorch/ao:main` ← `mykolas-perevicius:fix-issue-729-moe-quant-example`), **ready for review** (not draft), body = why→what→test plan→acceptance criteria→open questions, `Closes #729`.
+- **Review-request [comment](https://github.com/pytorch/ao/pull/4507#issuecomment-4736932731)** @mentioning **@jcaip** and **@msaroufim**.
+- Verified via `gh pr view`: state OPEN, isDraft false, base `main`, 2 files, +231/−0, commits `cb65991c3` + `ba6c62b09`.
+
+#### Open questions raised on the PR
+
+1. Example location: `examples/` (precedent #3408) vs `examples/inference/` (the `literalinclude` hint).
+2. Keep or drop the unit test (precedent #3408 was single-file; CI doesn't run examples).
+3. Add an `examples/README.md` entry?
+4. Supported **public** path for int4 weight-only, given `mslk >= 1.0.0` is `is_fbcode`-gated and the public PyPI `mslk` is a 0.0.0 stub.
+
+**Status:** Awaiting first review. Next: respond to maintainer feedback within ~24h; log each round here with dates + commit refs.
