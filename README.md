@@ -4,7 +4,7 @@
 **Student:** Mykolas Perevicius — GitHub [@mykolas-perevicius](https://github.com/mykolas-perevicius) — AI301 Section 1A  
 **Issue:** <https://github.com/pytorch/ao/issues/729>  
 **Fork:** <https://github.com/mykolas-perevicius/ao>  
-**Status:** Phase III Complete
+**Status:** Phase IV — CUDA validation complete (2026-06-17); PR draft prepared, awaiting review before opening
 
 > **Working log:** the first-look investigation, dated baseline evidence, and command transcripts live in [`contributions/pytorch-ao-729.md`](./contributions/pytorch-ao-729.md). This README keeps the report essentials.
 
@@ -169,7 +169,11 @@ Using UMPIRE framework (adapted):
 - `--dtype int4` on CPU: prints the documented hardware warning and exits non-zero (`mslk` + CUDA required) — the guard behaves as designed.
 - Full `test/quantization/test_quant_api.py` on CPU: 12 passed (including the new test), 32 skipped (GPU-only), 2 failed — both failures reproduce on a clean checkout without my changes (verified via `git stash`; they're Apple-silicon/MPS backend gaps: missing `torch.mps.reset_peak_memory_stats`, and `Float8_e4m3fn` unsupported on MPS), so they're unrelated to this change.
 - Lint: `ruff check` + `ruff format` (project-pinned v0.11.6) clean on both changed files; `scripts/check_copyright_header.py` passes on the new example.
-- **CUDA validation: pending (blocks Phase IV).** The int8/int4 `--device cuda` paths and the GPU-only tests will be exercised on a CUDA PC before the PR opens — runbook: [`contributions/gpu-validation-runbook.md`](./contributions/gpu-validation-runbook.md); results land here when done.
+- **CUDA validation: complete (2026-06-17, RTX 3090, SM 8.6, torch 2.12.1+cu130, CUDA 13.0).** Full transcript: [`contributions/repro/gpu-validation-MYKO-HQ.txt`](./contributions/repro/gpu-validation-MYKO-HQ.txt).
+  - `python examples/quantize_moe.py --device cuda` (int8): experts → `Int8Tensor`, router `torch.float32`, serialized 8.40 → 2.15 MB (3.90x), SQNR 45.1 dB, all assertions pass — **identical to the CPU run**, so the `--device cuda` path is now exercised end-to-end.
+  - `pytest test/quantization/test_quant_api.py -k moe`: **1 passed** on CUDA.
+  - Full `test/quantization/test_quant_api.py` on CUDA: **18 passed, 28 skipped, 0 failed**. Six more tests pass than on the Mac (GPU-only tests unskip on CUDA), and the **2 MPS failures seen on Apple silicon do not occur on Linux/CUDA** — confirming they were backend-specific, not caused by this change. All 28 skips are hardware-gated (`Need SM 8.9+` / `Checkpoints are produced in SM90+` for float8 on this SM 8.6 card) or pre-existing unconditional skips — none introduced by this change.
+  - `--dtype int4 --device cuda`: **could not be exercised end-to-end** — it raises `ImportError: Requires mslk >= 1.0.0` on CUDA just as it does on CPU. The public PyPI `mslk` is a 0.0.0 placeholder (894-byte empty wheel); torchao imports `from mslk.quantize.shuffle import int4_row_quantize_zp`, and `torchao/utils.py:1226` gates real availability on `is_fbcode()` — so the int4 default path depends on Meta's internal FBGEMM-GenAI `mslk`, which isn't installable from public PyPI at the required version. The runbook's `pip install mslk` step is therefore a dead end on public infrastructure. The example already gates int4 behind a `--dtype` flag with a hardware/dependency warning; this empirically confirms the docstring's "requires the `mslk` package" note and surfaces an open question for the maintainer (see PR draft).
 
 ---
 

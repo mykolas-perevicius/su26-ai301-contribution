@@ -154,3 +154,37 @@ python scripts/check_copyright_header.py examples/quantize_moe.py              #
 Decision: hold the PR until the example is validated on a CUDA machine — the `--dtype int4 --device cuda` path is documented but has never executed (this Mac is CPU/MPS-only), and a CUDA box unskips the 32 GPU-only tests in `test_quant_api.py`. Full step-by-step handoff (clone → run → capture → commit results back to this repo): [`gpu-validation-runbook.md`](./gpu-validation-runbook.md).
 
 Also noted but deliberately **not** bundled into this contribution: the 2 pre-existing `test_quant_api.py` failures on Apple silicon are MPS-specific upstream gaps (missing `torch.mps.reset_peak_memory_stats`; `Float8_e4m3fn` unsupported on MPS) that torchao's CI never sees (no MPS runners). Fixing them = MPS-aware skip guards / accelerator-agnostic memory APIs — a tidy **candidate Contribution 2**; check for an existing upstream issue before filing.
+
+### 2026-06-17 — Phase IV: CUDA validation (GPU machine)
+
+Ran the [GPU validation runbook](./gpu-validation-runbook.md) on a CUDA PC under WSL2. Full transcript: [`repro/gpu-validation-MYKO-HQ.txt`](./repro/gpu-validation-MYKO-HQ.txt).
+
+#### Environment
+
+- Host `MYKO-HQ` (WSL2). NVIDIA GeForce RTX 3090, driver 595.97, **compute capability SM 8.6**, 24 GB.
+- Python 3.12.3; `torch 2.12.1+cu130` (CUDA 13.0, `torch.cuda.is_available()` True); `torchao 0.18.0+git2b96e6f35` editable (`USE_CPP=0 pip install -e . --no-build-isolation`).
+- Same `SyntaxWarning: invalid escape sequence '\.'` on import seen on Python 3.14 also fires on 3.12 (now at `quant_api.py:1499` after upstream churn) — still cosmetic, still a candidate micro-fix.
+
+#### Results
+
+```sh
+python examples/quantize_moe.py --device cuda            # int8: Int8Tensor experts, router float32,
+                                                         # 8.40 -> 2.15 MB (3.90x), SQNR 45.1 dB, all asserts pass
+pytest test/quantization/test_quant_api.py -k moe        # 1 passed (3.20s)
+pytest test/quantization/test_quant_api.py               # 18 passed, 28 skipped, 0 failed (4.30s)
+python examples/quantize_moe.py --dtype int4 --device cuda  # ImportError: Requires mslk >= 1.0.0 (rc=1)
+```
+
+- **int8 `--device cuda`** matches the CPU run bit-for-bit on the reported metrics (3.90x, SQNR 45.1 dB) → the `--device` flag's CUDA path is now exercised, not just documented.
+- **Full test file**: 18 passed (6 more than the Mac's 12 — GPU-only tests unskip on CUDA), 0 failed. The **2 MPS failures from the Mac are absent on Linux/CUDA**, confirming they were Apple-silicon backend gaps unrelated to this change. All 28 skips are hardware-gated (`Need SM 8.9+` and `Checkpoints are produced in SM90+` for float8 — this card is SM 8.6) or pre-existing unconditional skips (`torch.compile error` skip; one decorated known-failing test). None are caused by this change.
+
+#### int4 finding (matters for the PR)
+
+The int4 `--device cuda` path — the one path GPU validation was meant to prove — **still cannot be run end-to-end on public infrastructure**:
+
+- It raises `ImportError: Requires mslk >= 1.0.0` on **CUDA exactly as on CPU** — int4 is a pure dependency gate, not a device-path issue.
+- The runbook's `pip install mslk` resolves to **`mslk 0.0.0`**, an 894-byte placeholder wheel on public PyPI with no submodules. torchao imports `from mslk.quantize.shuffle import int4_row_quantize_zp` (`int4_tensor.py:23`); the stub lacks it, so `int4_row_quantize_zp` stays `None` → the ImportError at `int4_tensor.py:140`.
+- `torchao/utils.py:1226` gates real availability on `is_fbcode()`. The required `mslk >= 1.0.0` is Meta's **internal FBGEMM-GenAI** kernel library, not publishable-installable from public PyPI at that version.
+- → Two follow-ups: (1) **correct the runbook** — drop/replace the `pip install mslk` line, since it cannot satisfy the int4 path on public infra; (2) **open question for the maintainer** — what is the supported public path to the int4 default kernels (build FBGEMM-GenAI? a different config? CPU-buildable variant)? The example already gates int4 behind `--dtype` with a hardware/dependency warning, so the showcase (int8) is unaffected.
+
+**STOP point:** CUDA validation complete and folded into the README (Manual Testing) + this log. PR description drafted (Phase IV). Per instruction, **no outward-facing action taken** — PR not opened, no upstream comment, log repo not pushed — pending review of the draft.

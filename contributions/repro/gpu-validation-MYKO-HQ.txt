@@ -1,0 +1,202 @@
+== env ==
+Wed Jun 17 20:08:50 EDT 2026
+NVIDIA GeForce RTX 3090, 595.97
+torch 2.12.1+cu130 | cuda 13.0 | sm (8, 6)
+W0617 20:08:54.935000 14757 torch/utils/_pytree.py:630] <enum 'KernelPreference'> is an Enum subclass and is now natively supported by torch.compile as an opaque value type. Calling register_constant() on Enum subclasses is deprecated and will be an error in a future release.
+torchao 0.18.0+git2b96e6f35
+
+== int8 on CUDA ==
+W0617 20:08:57.986000 14807 torch/utils/_pytree.py:630] <enum 'KernelPreference'> is an Enum subclass and is now natively supported by torch.compile as an opaque value type. Calling register_constant() on Enum subclasses is deprecated and will be an error in a future release.
+baseline | expert weight: Parameter (torch.float32) | serialized: 8.40 MB
+int8 wo  | expert weight: Int8Tensor | router: Parameter (torch.float32) | serialized: 2.15 MB (3.90x smaller) | SQNR vs float32: 45.1 dB
+quantization of the MoE model succeeded
+
+== int4 on CUDA (without mslk installed) ==
+mslk present: False
+-- running int4 --
+W0617 20:09:21.228000 15044 torch/utils/_pytree.py:630] <enum 'KernelPreference'> is an Enum subclass and is now natively supported by torch.compile as an opaque value type. Calling register_constant() on Enum subclasses is deprecated and will be an error in a future release.
+baseline | expert weight: Parameter (torch.float32) | serialized: 8.40 MB
+Traceback (most recent call last):
+  File "/home/myko/oss/ao/examples/quantize_moe.py", line 166, in <module>
+    main()
+  File "/home/myko/oss/ao/examples/quantize_moe.py", line 138, in main
+    quantize_(quantized_model, config, filter_fn=is_expert_linear)
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 337, in quantize_
+    _replace_with_custom_fn_if_matches_filter(
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 148, in _replace_with_custom_fn_if_matches_filter
+    model = replacement_fn(model, *extra_args)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 635, in _int4_weight_only_transform
+    new_weight = _int4_weight_only_quantize_tensor(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 598, in _int4_weight_only_quantize_tensor
+    new_weight = Int4Tensor.from_hp(
+                 ^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quantize_/workflows/int4/int4_tensor.py", line 140, in from_hp
+    raise ImportError("Requires mslk >= 1.0.0")
+ImportError: Requires mslk >= 1.0.0
+int4 rc=1
+
+== new MoE test ==
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.6.0 -- /home/myko/oss/ao/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/myko/oss/ao
+configfile: pyproject.toml
+collecting ... collected 46 items / 45 deselected / 1 selected
+
+test/quantization/test_quant_api.py::TestQuantFlow::test_int8_weight_only_moe_experts_only PASSED [100%]
+
+======================= 1 passed, 45 deselected in 3.20s =======================
+
+== full quant_api test file (GPU tests unskip here) ==
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.6.0 -- /home/myko/oss/ao/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/myko/oss/ao
+configfile: pyproject.toml
+collecting ... collected 46 items
+
+test/quantization/test_quant_api.py::TestQuantFlow::test_8da4w_quantizer PASSED [  2%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_8da4w_quantizer_linear_bias PASSED [  4%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_dynamic_quant_gpu_singleline PASSED [  6%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_dynamic_quant_gpu_unified_api_eager_mode_impl SKIPPED [  8%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_dynamic_quant_gpu_unified_api_unified_impl SKIPPED [ 10%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_int8_weight_only_moe_experts_only PASSED [ 13%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_int8_wo_quant_save_load PASSED [ 15%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_int8wo_quantized_model_to_device PASSED [ 17%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_default SKIPPED [ 19%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_embedding_linear PASSED [ 21%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_module_name SKIPPED [ 23%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_regex_basic PASSED [ 26%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_regex_fullmatch PASSED [ 28%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_regex_precedence PASSED [ 30%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_regex_precedence2 PASSED [ 32%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_module_fqn_to_config_skip SKIPPED [ 34%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_quantized_model_streaming PASSED [ 36%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_quantized_tensor_subclass_save_load PASSED [ 39%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_quantized_tensor_subclass_save_load_map_location PASSED [ 41%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_workflow_e2e_numerics_config0 PASSED [ 43%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_workflow_e2e_numerics_config1 PASSED [ 45%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_workflow_e2e_numerics_config2 PASSED [ 47%]
+test/quantization/test_quant_api.py::TestQuantFlow::test_workflow_e2e_numerics_config3 PASSED [ 50%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_filter_fn_and_fqn_to_config_error SKIPPED [ 52%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_config_module_config_and_fqn_config_both_specified SKIPPED [ 54%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_config_quantized_nested_module SKIPPED [ 56%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_config_quantized_nested_module_module_swap SKIPPED [ 58%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_config_quantized_nested_module_param SKIPPED [ 60%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_to_config_non_weight_param SKIPPED [ 63%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_to_config_regex_skip SKIPPED [ 65%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_to_config_repr_custom SKIPPED [ 67%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_fqn_to_config_repr_linear SKIPPED [ 69%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_non_fqn_config_filter_fn_none SKIPPED [ 71%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_module_over_param_regex SKIPPED [ 73%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_param_over_default SKIPPED [ 76%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_param_over_module SKIPPED [ 78%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_param_over_module_regex SKIPPED [ 80%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_param_regex_over_default SKIPPED [ 82%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_fqn_precedence_param_regex_over_module_regex SKIPPED [ 84%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_model_same_module_different_param SKIPPED [ 86%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_model_same_module_different_param_regex SKIPPED [ 89%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_param_fqn_exact SKIPPED [ 91%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantize_param_fqn_regex SKIPPED [ 93%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_quantized_model_streaming_fqn_config SKIPPED [ 95%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_top_level_param SKIPPED [ 97%]
+test/quantization/test_quant_api.py::TestFqnToConfig::test_unsupported_param_config_raises_not_implemented_error SKIPPED [100%]
+
+======================== 18 passed, 28 skipped in 4.30s ========================
+
+== skip reasons (full file, -rs) ==
+      1 SKIPPED [1] test/quantization/test_quant_api.py:992: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:982: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:966: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:947: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:902: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:879: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:853: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:838: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:822: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:806: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:791: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:776: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:761: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:736: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:710: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:673: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:650: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:621: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:601: Need SM 8.9+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:462: Need SM 8.9+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:448: Need SM 8.9+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:228: FAILED test/quantization/test_quant_api.py::TestQuantFlow::test_dynamic_quant_gpu_unified_api_eager_mode_impl - AssertionError: Tensor-likes are not equal!
+      1 SKIPPED [1] test/quantization/test_quant_api.py:213: skipping for now due to torch.compile error
+      1 SKIPPED [1] test/quantization/test_quant_api.py:1132: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:1094: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:1069: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:1043: Checkpoints are produced in SM90+
+      1 SKIPPED [1] test/quantization/test_quant_api.py:1018: Checkpoints are produced in SM90+
+      1 ======================== 18 passed, 28 skipped in 4.38s ========================
+
+== int4 on CUDA (the unproven path) ==
+-- pip install mslk --
+Collecting mslk
+  Downloading mslk-0.0.0-py3-none-any.whl.metadata (48 bytes)
+Downloading mslk-0.0.0-py3-none-any.whl (894 bytes)
+Installing collected packages: mslk
+Successfully installed mslk-0.0.0
+-- mslk version --
+mslk 0.0.0
+-- running int4 --device cuda --
+W0617 20:12:13.260000 16239 torch/utils/_pytree.py:630] <enum 'KernelPreference'> is an Enum subclass and is now natively supported by torch.compile as an opaque value type. Calling register_constant() on Enum subclasses is deprecated and will be an error in a future release.
+baseline | expert weight: Parameter (torch.float32) | serialized: 8.40 MB
+Traceback (most recent call last):
+  File "/home/myko/oss/ao/examples/quantize_moe.py", line 166, in <module>
+    main()
+  File "/home/myko/oss/ao/examples/quantize_moe.py", line 138, in main
+    quantize_(quantized_model, config, filter_fn=is_expert_linear)
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 337, in quantize_
+    _replace_with_custom_fn_if_matches_filter(
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 153, in _replace_with_custom_fn_if_matches_filter
+    new_child = _replace_with_custom_fn_if_matches_filter(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 148, in _replace_with_custom_fn_if_matches_filter
+    model = replacement_fn(model, *extra_args)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 635, in _int4_weight_only_transform
+    new_weight = _int4_weight_only_quantize_tensor(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quant_api.py", line 598, in _int4_weight_only_quantize_tensor
+    new_weight = Int4Tensor.from_hp(
+                 ^^^^^^^^^^^^^^^^^^^
+  File "/home/myko/oss/ao/torchao/quantization/quantize_/workflows/int4/int4_tensor.py", line 140, in from_hp
+    raise ImportError("Requires mslk >= 1.0.0")
+ImportError: Requires mslk >= 1.0.0
+int4 rc=1
+
+== int4 finding ==
+Public PyPI 'mslk' is version 0.0.0 (an 894-byte placeholder wheel with no submodules).
+torchao needs: from mslk.quantize.shuffle import int4_row_quantize_zp (and mslk.quantize.triton.fp8_quantize, mslk.conv).
+Those submodules are absent in the PyPI stub -> int4_row_quantize_zp stays None -> ImportError('Requires mslk >= 1.0.0').
+torchao/utils.py:1226 gates real availability on is_fbcode(); mslk>=1.0.0 is a Meta-internal/FBGEMM-GenAI kernel lib, not publishable-installable from public PyPI at the required version.
+Conclusion: int4 --device cuda cannot be exercised end-to-end with public packages on this box. int8 weight-only fully validates the --device cuda machinery.
+-- uninstalling the bogus mslk 0.0.0 stub --
+Uninstalling mslk-0.0.0:
+  Successfully uninstalled mslk-0.0.0
+
+== validation complete ==
+Wed Jun 17 20:12:49 EDT 2026
