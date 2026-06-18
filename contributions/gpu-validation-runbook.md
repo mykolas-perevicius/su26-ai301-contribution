@@ -7,7 +7,7 @@
 ## Prerequisites
 
 - NVIDIA GPU + driver installed (`nvidia-smi` works).
-- Linux or **WSL2** (on native Windows, the `mslk` package needed for int4 likely has no wheels — use WSL2).
+- Linux or **WSL2** (used for the 2026-06-17 run). Note: the int4 path's `mslk` dependency is not satisfiable from public PyPI on any OS (see int4 note below); int8-on-CUDA is the path this runbook proves.
 - Python ≥ 3.10.
 
 ## Steps
@@ -30,8 +30,13 @@ pip install pytest parameterized expecttest
   python examples/quantize_moe.py --device cuda
 
   echo "== int4 on CUDA (the unproven path) =="
-  pip install mslk
-  python examples/quantize_moe.py --dtype int4 --device cuda
+  # NOTE (validated 2026-06-17): `pip install mslk` does NOT enable this path — the public
+  # PyPI `mslk` is a 0.0.0 placeholder (894-byte empty wheel). torchao imports
+  # `from mslk.quantize.shuffle import int4_row_quantize_zp` and gates real availability on
+  # `is_fbcode()` (torchao/utils.py:1226); the required mslk>=1.0.0 is Meta-internal
+  # (FBGEMM-GenAI), so int4 raises `ImportError: Requires mslk >= 1.0.0` on CPU and CUDA alike.
+  # Skip on public infra — int8 above already validates the `--device cuda` path.
+  python examples/quantize_moe.py --dtype int4 --device cuda   # expected: ImportError until mslk>=1.0.0 is available
 
   echo "== new MoE test =="
   pytest test/quantization/test_quant_api.py -k moe -v
@@ -47,11 +52,11 @@ pip install pytest parameterized expecttest
 | Check | Expect |
 |-------|--------|
 | int8 `--device cuda` | experts → `Int8Tensor`, router `float32`, ~3.9x smaller, SQNR ≳ 40 dB, "succeeded" |
-| int4 `--device cuda` | runs end-to-end; record the size ratio and SQNR (SQNR > 25 dB satisfies the script's assert) |
+| int4 `--device cuda` | **blocked on public infra (confirmed 2026-06-17):** `ImportError: Requires mslk >= 1.0.0` — public PyPI `mslk` is a 0.0.0 stub; real `mslk>=1.0.0` is Meta-internal (`is_fbcode`-gated). int8 already validates the `--device cuda` path; record the error and move on. |
 | `-k moe` test | 1 passed |
 | full test file | new failures only if GPU-specific and pre-existing — note count + names; SM < 8.9 keeps float8 tests skipped (fine, note it) |
 
-Fallbacks: `pip install mslk` fails → record the error; int8-on-CUDA still validates `--device`, and the int4 docstring note stands on its documented requirements. `torch.cuda.is_available()` is False → reinstall with `pip install torch --index-url https://download.pytorch.org/whl/cu128`.
+Fallbacks: int4 path → **expect it to fail** (`ImportError: Requires mslk >= 1.0.0`); record the error and continue. int8-on-CUDA still validates `--device`, and the int4 docstring note stands on its documented requirements. `torch.cuda.is_available()` is False → reinstall with `pip install torch --index-url https://download.pytorch.org/whl/cu128`.
 
 ## Bring the results back
 

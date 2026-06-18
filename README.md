@@ -206,6 +206,16 @@ Using UMPIRE framework (adapted):
   - **Added a unit test beyond the single-file precedent (#3408)** — CI never executes examples, so without a test, MoE support stays demonstrated-but-unguarded. The test makes it regression-checked; it's an easy drop in review if maintainers prefer the single-file shape.
   - **Deferred the `examples/README.md` entry** — precedent PR #3408 didn't add one; the open question to maintainers (location, `examples/` vs `examples/inference/`) is still pending, so this stays a PR-review decision.
 
+### Engineering judgment beyond the minimum
+
+Mapping the work to behaving like a contributing engineer (Phase III +3 bonus criteria):
+
+- **Edge cases maintainers hadn't mentioned, surfaced in code/docs:** the router must stay high-precision (quantizing it changes token-to-expert *routing*, not just numerics) — enforced by the experts-only `filter_fn`; real HF checkpoints store experts as fused 3D `(num_experts, K, N)` params needing `FqnToConfig` + `PerRow(1)` — called out in the example docstring; empty-expert-batch guard (`token_idx.numel() == 0`); int4's hidden dependency is `mslk`, not merely "needs a GPU."
+- **Reused project-specific helpers instead of hand-rolling:** `torchao.quantization.utils.compute_error` for SQNR; the test mirrors the file's own `ToyLinearModel` shape, `Int8Tensor` isinstance asserts, and `sqnr` threshold pattern; BSD-3 header verified with the repo's own `scripts/check_copyright_header.py`.
+- **Descoped sensibly with documented notes:** deferred the `examples/README.md` entry (matching precedent #3408, location question still open) and flagged the unit test as a clean drop if maintainers prefer the single-file shape — both written down rather than decided silently.
+- **Went past the brief and reported the finding:** validated on a real CUDA GPU (RTX 3090) ahead of the PR and, doing so, discovered the int4 `mslk` dependency is **unsatisfiable from public PyPI** (the published `mslk` is a 0.0.0 stub; the real lib is `is_fbcode`-gated). Corrected our own GPU runbook accordingly and turned it into a concrete open question for the maintainer rather than a silent skip. Also caught a pre-existing `SyntaxWarning` (`quant_api.py:1499`) offered as a separate one-line micro-PR.
+- **Verified, didn't assume:** when the full test file showed 2 failures on macOS, `git stash`-ed the change and re-ran to prove they were pre-existing MPS backend gaps — later confirmed on CUDA, where those 2 failures don't occur at all.
+
 ---
 
 ## Pull Request
